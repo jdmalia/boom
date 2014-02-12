@@ -35,7 +35,7 @@ OpenGLPanel::OpenGLPanel(QWidget *parent) :
 
     solver = new FluidSolver();
 
-    float fps = 60;
+    float fps = 30;
     timer = new QTimer(this);
     timer->start(1/fps*1000);
 
@@ -55,6 +55,7 @@ OpenGLPanel::OpenGLPanel(QWidget *parent) :
     insertDensities = false;
     insertVelocities = false;
     insertHeat = false;
+    ignite = false;
 
     addDensities = false;
     subtractDensities = false;
@@ -112,25 +113,32 @@ void OpenGLPanel::paintGL()
 {
     int i, j;
     float c = 0, horz, vert, max;
-    float hSpace = width()/(float)DIM, vSpace = height()/(float)DIM;
+    float hSpace = width()/(float)(DIM+2), vSpace = height()/(float)(DIM+2);
 
     glClear(GL_COLOR_BUFFER_BIT);
 
 
     for(i=0; i<NUM_STEPS; i++){
         if(mouseDown){
-            int x = (int)(mouse_x/(width()/DIM)+0.5);
-            int y = (int)(DIM-mouse_y/(height()/DIM)+0.5);
+            int x = (int)(mouse_x/(hSpace));
+            int y = (int)(DIM+2-mouse_y/(vSpace));
             if (insertDensities) {
                 solver->d_prev[IX(y,x)] = 1000;
             }
             if (insertVelocities) {
-                solver->u[IX(y,x)] += du*solver->dt;
-                solver->v[IX(y,x)] += dv*solver->dt;
+                float u = du*solver->dt;
+                float v = dv*solver->dt;
+//                if( u > 1) u = 1; else if (u < -1) u = -1;
+//                if( v > 1) v = 1; else if (v < -1) v = -1;
+                solver->u[IX(y,x)] = u;
+                solver->v[IX(y,x)] = v;
             }
             if (insertHeat){
                 solver->t[IX(y,x)] += 1000*solver->dt;
                 if(solver->t[IX(y,x)] > 1) solver->t[IX(y,x)] = 1;
+            }
+            if(ignite){
+                solver->t[IX(y,x)] = 100;
             }
             if(addDensities) {
                 solver->d[IX(y,x)] += 1*solver->dt;
@@ -171,71 +179,34 @@ void OpenGLPanel::paintGL()
             }
         }
     }
-//    if(buoyancyColoring && !showScalars){
-//        float d, d0, r, g, b;
-//        float alpha = 1;
-//        d0 = solver->t_amb;
-//        for(i=0; i<DIM+1; i++) {
-//            for(j=0; j<DIM+1; j++){
-
-//                d = solver->t[IX(i,j)];
-//                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-//                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
-//                glColor4f(r,g,b,alpha);
-//                glVertex2d(j*hSpace+.1, i*vSpace+.1);
-
-//                d = solver->t[IX(i+1,j)];
-//                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-//                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
-//                glColor4f(r,g,b,alpha);
-//                glVertex2d(j*hSpace+.1, (i+1)*vSpace+.1);
-
-//                d = solver->t[IX(i+1,j+1)];
-//                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-//                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
-//                glColor4f(r,g,b,alpha);
-//                glVertex2d((j+1)*hSpace+.1, (i+1)*vSpace+.1);
-
-//                d = solver->t[IX(i,j+1)];
-//                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-//                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
-//                glColor4f(r,g,b,alpha);
-//                glVertex2d((j+1)*hSpace+.1, i*vSpace+.1);
-//            }
-//        }
-//    }
 
     if(showTemperatures && !showScalars){
 
-        float d, d0, r, g, b;
+        float d, d0, r, g=0, b=0;
         float alpha = 1;
         d0 = solver->t_amb;
-        for(i=0; i<DIM+1; i++) {
-            for(j=0; j<DIM+1; j++){
+        for(i=0; i<DIM+2; i++) {
+            for(j=0; j<DIM+2; j++){
 
                 d = solver->t[IX(i,j)];
-                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
+                r = (d-d0)/(1-d0);
                 glColor4f(r,g,b,alpha);
-                glVertex2d(j*hSpace+.1, i*vSpace+.1);
+                glVertex2d(j*hSpace, i*vSpace);
 
                 d = solver->t[IX(i+1,j)];
-                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
+                r = (d-d0)/(1-d0);
                 glColor4f(r,g,b,alpha);
-                glVertex2d(j*hSpace+.1, (i+1)*vSpace+.1);
+                glVertex2d(j*hSpace, (i+1)*vSpace);
 
                 d = solver->t[IX(i+1,j+1)];
-                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
+                r = (d-d0)/(1-d0);
                 glColor4f(r,g,b,alpha);
-                glVertex2d((j+1)*hSpace+.1, (i+1)*vSpace+.1);
+                glVertex2d((j+1)*hSpace, (i+1)*vSpace);
 
                 d = solver->t[IX(i,j+1)];
-                if(d < d0) {b = -(d-d0)/d0; g = 0; r=0;}
-                else {r = (d-d0)/(1-d0); b = 0; g = 0;}
+                r = (d-d0)/(1-d0);
                 glColor4f(r,g,b,alpha);
-                glVertex2d((j+1)*hSpace+.1, i*vSpace+.1);
+                glVertex2d((j+1)*hSpace, i*vSpace);
             }
         }
     }
@@ -290,31 +261,34 @@ void OpenGLPanel::paintGL()
     if(showParticles && !showScalars){
 
 //        glColor3f(1.0f,0.8f,0.0f);
-
-        if(solver->num_particles > 2500 || solver->performance == HIGH){
             glBegin(GL_POINTS);
             float x, y;
             for(int i=0; i<solver->num_particles; i++){
-                glColor3f(1, solver->particle_temp[i], 0);
-                //glColor3f(1.0f,rand()/(1.0*INT_MAX), 0);
-                x = this->width()*solver->particle_pos_Y[i];
-                y = this->height()*solver->particle_pos_X[i];
-                glVertex2d(x, y);
+                float r,g,b,life = solver->particle_life[i];
+                if (life > 0){
+                    if(life == 1) {r = 1; g = solver->particle_temp[i]; b=0;}
+                    else{r=life, g=life, b=life;}
+                    glColor3f(r, g, b);
+                    //glColor3f(1.0f,rand()/(1.0*INT_MAX), 0);
+                    x = this->width()*solver->particle_pos_Y[i];
+                    y = this->height()*solver->particle_pos_X[i];
+                    glVertex2d(x, y);
+                }
             }
             glEnd();
-        } else {
-            GLUquadric *quadric = gluNewQuadric();
-            gluQuadricDrawStyle(quadric, GLU_FILL);
+//        } else {
+//            GLUquadric *quadric = gluNewQuadric();
+//            gluQuadricDrawStyle(quadric, GLU_FILL);
 
-            for(int i=0; i<solver->num_particles; i++){
-                glColor3f(1, green[i], 0);
-                //glColor3f(rand()/(1.0f*INT_MAX),rand()/(1.0f*INT_MAX),rand()/(1.0f*INT_MAX));
-                glPushMatrix();
-                glTranslatef(this->width()*solver->particle_pos_Y[i], this->height()*solver->particle_pos_X[i], 0);
-                gluDisk(quadric, 0, 3, 4 , 4);
-                glPopMatrix();
-            }
-        }
+//            for(int i=0; i<solver->num_particles; i++){
+//                glColor3f(1, green[i], 0);
+//                //glColor3f(rand()/(1.0f*INT_MAX),rand()/(1.0f*INT_MAX),rand()/(1.0f*INT_MAX));
+//                glPushMatrix();
+//                glTranslatef(this->width()*solver->particle_pos_Y[i], this->height()*solver->particle_pos_X[i], 0);
+//                gluDisk(quadric, 0, 3, 4 , 4);
+//                glPopMatrix();
+//            }
+//        }
     }
 
     if(boom){
@@ -327,7 +301,8 @@ void OpenGLPanel::paintGL()
                 for(y = center_y-radius; y<=center_y+radius; y++){
                     if (x >=0 && x <= DIM+1 && y >= 0 && y <= DIM+1 &&
                             ((x-center_x)*(x-center_x) + (y-center_y)*(y-center_y))<radius*radius) {
-                        solver->div_constants[IX(y,x)] = solver->blast_intensity;
+//                        solver->div_constants[IX(y,x)] = solver->blast_intensity;
+                        solver->t[IX(y,x)] = 10000*solver->blast_intensity;
                         //solver->d[IX(y,x)] = 1;
                     }
                 }
@@ -339,7 +314,8 @@ void OpenGLPanel::paintGL()
 
                 for(y = center_y-y_radius; y<=center_y+y_radius; y++){
                     if (x >=0 && x <= DIM+1 && y >= 0 && y <= DIM+1) {
-                        solver->div_constants[IX(y,x)] = solver->blast_intensity;
+                        //solver->div_constants[IX(y,x)] = solver->blast_intensity;
+                        solver->t[IX(y,x)] = 10000*solver->blast_intensity;
                     }
                 }
                 if(x < center_x) y_radius++;
@@ -350,7 +326,8 @@ void OpenGLPanel::paintGL()
             for(x = center_x-radius; x<=center_x+radius; x++){
                 for(y = center_y-radius; y<=center_y+radius; y++){
                     if (x >=0 && x <= DIM+1 && y >= 0 && y <= DIM+1) {
-                        solver->div_constants[IX(y,x)] = solver->blast_intensity;
+                        //solver->div_constants[IX(y,x)] = solver->blast_intensity;
+                        solver->t[IX(y,x)] = 10000*solver->blast_intensity;
                     }
                 }
             }
@@ -395,10 +372,18 @@ void OpenGLPanel::paintGL()
         }
     }
 
-    if(showGrid) drawGrid(DIM,DIM);
+    if(showGrid) drawGrid(DIM+2,DIM+2);
 
     emit mouseX(QString::number((int)mouse_x));
     emit mouseY(QString::number((int)mouse_y));
+
+    if(solver->sum_divergence){
+        emit recordingDivergence("Recording Divergence...");
+        emit recordingIterations(QString("Iterations: ")+QString::number(solver->iterations));
+    } else if (!solver->sum_divergence && !key_pressed) {
+        emit recordingDivergence("");
+        emit recordingIterations("");
+    }
 
     if(record){
         char curr_frame[512];
@@ -406,14 +391,6 @@ void OpenGLPanel::paintGL()
         frame = grabFrameBuffer();
         frame.save(curr_frame);
         currentFrame++;
-    }
-
-    if(solver->sum_divergence){
-        emit recordingDivergence("Recording Divergence...");
-        emit recordingIterations(QString("Iterations: ")+QString::number(solver->iterations));
-    } else {
-        emit recordingDivergence("");
-        emit recordingIterations("");
     }
 }
 
@@ -481,12 +458,35 @@ void OpenGLPanel::mouseReleaseEvent(QMouseEvent *e){
 }
 
 void OpenGLPanel::keyPressEvent(QKeyEvent * e){
-    if(e->key() == (int)'d' || e->key() == (int)'D') insertDensities = true;
-    if(e->key() == (int)'v' || e->key() == (int)'V') insertVelocities = true;
-    if(e->key() == (int)'h' || e->key() == (int)'H') insertHeat = true;
-    if(e->key() == (int)'b' || e->key() == (int)'B') boom_trigger = true;
-    if(e->key() == (int)'a' || e->key() == (int)'A') addDensities = true;
-    if(e->key() == (int)'s' || e->key() == (int)'S') subtractDensities = true;
+    key_pressed = true;
+    if(e->key() == (int)'d' || e->key() == (int)'D') {
+        insertDensities = true;
+        emit recordingDivergence("Inserting densities...");
+    }
+    if(e->key() == (int)'v' || e->key() == (int)'V') {
+        insertVelocities = true;
+        emit recordingDivergence("Inserting velocities...");
+    }
+    if(e->key() == (int)'h' || e->key() == (int)'H') {
+        insertHeat = true;
+        emit recordingDivergence("Inserting heat...");
+    }
+    if(e->key() == (int)'b' || e->key() == (int)'B') {
+        boom_trigger = true;
+        emit recordingDivergence("Inserting charges...");
+    }
+    if(e->key() == (int)'a' || e->key() == (int)'A') {
+        addDensities = true;
+        emit recordingDivergence("Adding densities...");
+    }
+    if(e->key() == (int)'s' || e->key() == (int)'S') {
+        subtractDensities = true;
+        emit recordingDivergence("Subtracting densities...");
+    }
+    if(e->key() == (int)'i' || e->key() == (int)'I') {
+        ignite = true;
+        emit recordingDivergence("Igniting...");
+    }
     if(e->key() == (int)'6') {
         solver->sum_divergence = true;
         solver->iterations = 0;
@@ -513,12 +513,15 @@ void OpenGLPanel::keyPressEvent(QKeyEvent * e){
 }
 
 void OpenGLPanel::keyReleaseEvent(QKeyEvent * e) {
+    key_pressed = false;
     insertDensities = false;
     addDensities = false;
     subtractDensities = false;
     insertVelocities = false;
     insertHeat = false;
+    ignite = false;
     boom_trigger = false;
+    emit recordingDivergence("");
 }
 
 void OpenGLPanel::set_dt(int new_dt){
@@ -527,6 +530,10 @@ void OpenGLPanel::set_dt(int new_dt){
 
 void OpenGLPanel::set_diff(int new_diff){
     solver->set_diff(new_diff/1000000.0);
+}
+
+void OpenGLPanel::set_heat_diff(int new_diff){
+    solver->set_heat_diff(new_diff/1000000.0);
 }
 
 void OpenGLPanel::set_visc(int new_visc){
@@ -717,6 +724,8 @@ void OpenGLPanel::insertParticles(){
         for(int j=0; j<col_num; j++){
             solver->particle_pos_X[i*col_num+j] = (start_x + i*x_increment)/this->width();
             solver->particle_pos_Y[i*col_num+j] = (start_y + j*y_increment)/this->height();
+            solver->particle_life[i*col_num+j] = 1;
+            solver->particle_temp[i*col_num+j] = 0;
             red[i*col_num+j] = rand()/(1.0*INT_MAX);
             green[i*col_num+j] = rand()/(1.0*INT_MAX);
             blue[i*col_num+j] = rand()/(1.0*INT_MAX);
@@ -732,15 +741,17 @@ void OpenGLPanel::insertRandomParticles(){
     solver->num_particles = 100000;
 
     for(int i=0; i<solver->num_particles; i++){
-            solver->particle_pos_X[i] = (rand()/(1.0*INT_MAX));
-            solver->particle_pos_Y[i] = (rand()/(1.0*INT_MAX));
+            solver->particle_pos_X[i] = (rand()/(1.0*INT_MAX))*(1-2*solver->h_space) + solver->h_space;
+            solver->particle_pos_Y[i] = (rand()/(1.0*INT_MAX))*(1-2*solver->h_space) + solver->h_space;
+            solver->particle_life[i] = 1;
+            solver->particle_temp[i] = 0;
             red[i] = rand()/(1.0*INT_MAX);
             green[i] = rand()/(1.0*INT_MAX);
             blue[i] = rand()/(1.0*INT_MAX);
     }
-    for(int i=0; i<DIM/2; i++){
+    for(int i=0; i<(DIM+2)/2; i++){
         for(int j=0; j<DIM+2; j++){
-            solver->t[IX(j,i)] = 1;
+            solver->t[IX(j,i)] = .7;
         }
     }
 }
@@ -789,17 +800,40 @@ void OpenGLPanel::temperatureTest() {
 
     reset();
     solver->reset();
-    int i,j;
 
-    // A square that is one third of the window width/height
-    for(i=DIM/3; i<=2*DIM/3; i++){
-        for(j=DIM/3; j<=2*DIM/3.0; j++){
-            solver->t[IX(j,i)] = 1;
-        }
+//    // A square that is one third of the window width/height
+//    for(i=(int)((DIM+2)/3.0); i<=(int)(2*(DIM+2)/3.0); i++){
+//        for(j=(int)((DIM+2)/3.0); j<=(int)(2*(DIM+2)/3.0); j++){
+//            solver->t[IX(j,i)] = 1;
+//        }
+//    }
+
+    solver->num_particles = 100000;
+    float dx, dy, deg, rad, rad_max = .2;
+    for(int i=0; i<solver->num_particles; i++){
+//            rad = (-2*rad_max*(rand()/(1.0*INT_MAX))+rad_max);
+//            deg = 2*PI*(rand()/(1.0*INT_MAX));
+//            dx = (float)(rad*cos(deg));
+//            dy = (float)(rad*sin(deg));
+//            solver->particle_pos_X[i] = .5+dx;
+//            solver->particle_pos_Y[i] = .5+dy;
+//            solver->particle_life[i] = 1;
+            solver->particle_pos_X[i] = (float)(rand()/(1.0*INT_MAX));
+            solver->particle_pos_Y[i] = (float)(rand()/(1.0*INT_MAX));
+            solver->particle_life[i] = 1;
+            //solver->particle_temp[i] = .8;
     }
+
+    solver->particle_pos_X[solver->num_particles-1] = 0.5+solver->h_space/10;
+    solver->particle_pos_Y[solver->num_particles-1] = 0.5+solver->h_space/10;
+    //solver->particle_temp[solver->num_particles-1] = 1;
 
 }
 
 void OpenGLPanel::setTemperatures(bool enabled){
     showTemperatures = enabled;
+}
+
+void OpenGLPanel::setExplodingParticles(bool enabled){
+    solver->setExplodingParticles(enabled);
 }

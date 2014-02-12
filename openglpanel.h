@@ -39,6 +39,8 @@ private:
     bool subtractDensities;
     bool insertVelocities;
     bool insertHeat;
+    bool ignite;
+    bool key_pressed;
     bool boom_trigger;
     bool buoyancyColoring;
     bool boom;
@@ -104,7 +106,8 @@ public slots:
     void stopRecord(bool);
     void buoyancyEnable(bool);
     void set_buoy(int);
-
+    void set_heat_diff(int);
+    void setExplodingParticles(bool);
 
 
     void set_temp_diff_enable(bool);

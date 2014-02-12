@@ -35,7 +35,7 @@ FluidSolver::FluidSolver() {
     simEnabled = true;
 
     allocateMemory();
-    dt = .01;
+    dt = 0.1;
     diff = 0.00001;
     heat_diff = 0.00001;
     visc = 0.0001;
@@ -55,11 +55,16 @@ FluidSolver::FluidSolver() {
 
     bad_diffusion = false;
 
-    h_space = 1.0/DIM;
+    h_space = 1.0/(DIM+2);
 
     ah = 1;
     r = 1;
     cm = 1;
+    z = 1;
+    Bh = 200;
+    temp_threshold = 0.9;
+    exploding_particles = true;
+    explosiveParticles = true;
 
     initializeConjGradMat(&conj_grad_A_diff, diff, dt, h_space);
     initializeConjGradMat(&conj_grad_A_temp, diff, dt, h_space);
@@ -71,13 +76,13 @@ FluidSolver::FluidSolver() {
 
     cg_tolerance = 0.1;
 
-    method = CONJ_GRAD;
+    method = GAUSS_SEIDEL;
     bfecc = true;
     oneStep = false;
 
     performance = NORMAL;
 
-    vel_method = MIDPOINT;
+    vel_method = FORWARD_EULER;
 
     div_falloff = 0.005;
 
@@ -194,6 +199,11 @@ void FluidSolver::allocateMemory() {
     }
     particle_temp = (float *)calloc(MAX_PARTICLES, sizeof(float));
     if(NULL==particle_temp) {
+        // Handle error
+        exit(-1);
+    }
+    particle_life = (float *)calloc(MAX_PARTICLES, sizeof(float));
+    if(NULL==particle_life) {
         // Handle error
         exit(-1);
     }
@@ -322,71 +332,147 @@ void FluidSolver::initializeConjGradMat(SparseMatrix<float> *conj_grad_A, float 
 
 void FluidSolver::initializeConjGradProj(){
 
-    conj_grad_A_proj = SparseMatrix<float>(DIM*DIM, DIM*DIM);
+//    conj_grad_A_proj = SparseMatrix<float>(DIM*DIM, DIM*DIM);
+
+//    int diag_pos = 0;
+
+//    float L = 1.0;
+
+//    for(int i=0; i<DIM; i++){
+//        for(int j=0; j<DIM; j++){
+
+//            if (i==0 && j==0) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+//            }
+//            else if (i==0 && j==DIM-1) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+//            }
+//            else if (i==DIM-1 && j==0) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+//            }
+//            else if (i==DIM-1 && j==DIM-1) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+//            }
+//            else if (i==0) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+//            }
+//            else if (j==0){
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+//            }
+//            else if (i==DIM-1){
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+//            }
+//            else if (j==DIM-1){
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+//            }
+//            else {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 4*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+//            }
+
+//            diag_pos++;
+//        }
+//    }
+    conj_grad_A_proj = SparseMatrix<float>(SIZE, SIZE);
 
     int diag_pos = 0;
 
     float L = 1.0;
 
-    for(int i=0; i<DIM; i++){
-        for(int j=0; j<DIM; j++){
+    for(int i=0; i<DIM+2; i++){
+        for(int j=0; j<DIM+2; j++){
 
             if (i==0 && j==0) {
+ //               conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 1;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+(DIM+2)) = -1*L;
             }
-            else if (i==0 && j==DIM-1) {
+//            else if (i==0 && j==1) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+(DIM+2)) = -1*L;
+//            }
+//            else if (i==1 && j==0) {
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
+//                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM+2) = -1*L;
+//            }
+            else if (i==0 && j==DIM+1) {
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+(DIM+2)) = -1*L;
             }
-            else if (i==DIM-1 && j==0) {
+            else if (i==DIM+1 && j==0) {
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-(DIM+2)) = -1*L;
             }
-            else if (i==DIM-1 && j==DIM-1) {
+            else if (i==DIM+1 && j==DIM+1) {
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 2*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-(DIM+2)) = -1*L;
             }
             else if (i==0) {
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+(DIM+2)) = -1*L;
             }
             else if (j==0){
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-(DIM+2)) = -1*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+(DIM+2)) = -1*L;
             }
-            else if (i==DIM-1){
+            else if (i==DIM+1){
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-(DIM+2)) = -1*L;
             }
-            else if (j==DIM-1){
+            else if (j==DIM+1){
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 3*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+(DIM+2)) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-(DIM+2)) = -1*L;
             }
             else {
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos) = 4*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos-1) = -1*L;
                 conj_grad_A_proj.coeffRef(diag_pos, diag_pos+1) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-DIM) = -1*L;
-                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos-(DIM+2)) = -1*L;
+                conj_grad_A_proj.coeffRef(diag_pos, diag_pos+DIM+2) = -1*L;
             }
 
             diag_pos++;
         }
     }
 
+    if(DIM < 5) cout << conj_grad_A_proj;
 }
 
 void FluidSolver::arrToVec(VectorXf* vec, float* arr, int size){
@@ -558,9 +644,73 @@ void FluidSolver::project ( int N, float * u, float * v, float * p, float * div 
 
 void FluidSolver::project_cg(int n, float *u, float *v, float *p, float *div){
 
-    int i, j, k;
+//    int i, j;
+//    float h;
+//    h = 1.0/(n+2);
+
+//    for ( i=1 ; i<=n ; i++ ) {
+//        for ( j=1 ; j<=n ; j++ ) {
+//            div[IX(i,j)] = -0.5*h*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)]) + div_constants[IX(i,j)];
+//        }
+//    }
+
+
+//    set_bnd ( n, 0, div ); set_bnd ( n, 0, p );
+
+//    for(int i=0; i<DIM; i++) {
+//        for(int j=0; j<DIM; j++){
+//            conj_grad_b(i*DIM+j) = div[(i+1)*(DIM+2)+j+1];
+//        }
+
+//    }
+
+
+//    ConjugateGradient<SparseMatrix<float> > cg;
+//    cg.setMaxIterations(CG_ITERATIONS);
+//    //cg.setTolerance(1e-2);
+//    cg.compute(conj_grad_A_proj);
+
+//    conj_grad_x = cg.solve(conj_grad_b);
+
+//    VectorXf res = conj_grad_A_proj*conj_grad_x - conj_grad_b;
+//    printf("Norm: %f, Iterations: %d, Error: %f\n", res.norm(), cg.iterations(), cg.error()    );
+
+//    for(int i=0; i<DIM; i++) {
+//        for(int j=0; j<DIM; j++){
+//            p[(i+1)*(DIM+2)+j+1] = conj_grad_x(i*DIM+j);
+//        }
+//    }
+
+//    set_bnd ( n, 0, p );
+
+//    for ( i=1 ; i<=n ; i++ ) {
+//        for ( j=1 ; j<=n ; j++ ) {
+//            u[IX(i,j)] -= 0.5*(p[IX(i+1,j)]-p[IX(i-1,j)])/h;
+//            v[IX(i,j)] -= 0.5*(p[IX(i,j+1)]-p[IX(i,j-1)])/h;
+//        }
+//    }
+//    set_bnd ( n, 1, u ); set_bnd ( n, 2, v );
+
+//    for(i = 0; i<SIZE; i++) {
+//        div_constants[i] -= div_falloff*dt;
+//        if (div_constants[i] < 0) div_constants[i] = 0;
+//    }
+
+//    for ( i=1 ; i<=n ; i++ ) {
+//        for ( j=1 ; j<=n ; j++ ) {
+//            div[IX(i,j)] = -0.5*h*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)]) + div_constants[IX(i,j)];
+//        }
+//    }
+
+
+//    set_bnd ( n, 0, div ); set_bnd ( n, 0, p );
+
+    VectorXf conj_grad_b = VectorXf(SIZE);
+    VectorXf conj_grad_x = VectorXf(SIZE);
+
+    int i, j;
     float h;
-    h = 1.0/n;
+    h = 1.0/(n+2);
 
     for ( i=1 ; i<=n ; i++ ) {
         for ( j=1 ; j<=n ; j++ ) {
@@ -569,33 +719,31 @@ void FluidSolver::project_cg(int n, float *u, float *v, float *p, float *div){
     }
 
 
-    set_bnd ( n, 0, div ); set_bnd ( n, 0, p );
+    set_bnd ( n, 0, div );
 
-    for(int i=0; i<DIM; i++) {
-        for(int j=0; j<DIM; j++){
-            conj_grad_b(i*DIM+j) = div[(i+1)*(DIM+2)+j+1];
+    for(int i=0; i<DIM+2; i++) {
+        for(int j=0; j<DIM+2; j++){
+            conj_grad_b(IX(i,j)) = div[IX(i,j)];
         }
-
     }
-
 
     ConjugateGradient<SparseMatrix<float> > cg;
     cg.setMaxIterations(CG_ITERATIONS);
-    //cg.setTolerance(1e-2);
+    cg.setTolerance(1e-3);
     cg.compute(conj_grad_A_proj);
 
     conj_grad_x = cg.solve(conj_grad_b);
 
     VectorXf res = conj_grad_A_proj*conj_grad_x - conj_grad_b;
-    printf("Norm: %f, Iterations: %d, Error: %f\n", res.norm(), cg.iterations(), cg.error()    );
+    printf("Norm: %f, Iterations: %d, Error: %f\n", res.norm(), cg.iterations(), cg.error() );
 
-    for(int i=0; i<DIM; i++) {
-        for(int j=0; j<DIM; j++){
-            p[(i+1)*(DIM+2)+j+1] = conj_grad_x(i*DIM+j);
+    for(int i=0; i<DIM+2; i++) {
+        for(int j=0; j<DIM+2; j++){
+            p[IX(i,j)] = conj_grad_x(IX(i,j));
         }
     }
 
-    set_bnd ( n, 0, p );
+    //set_bnd ( n, 0, p );
 
     for ( i=1 ; i<=n ; i++ ) {
         for ( j=1 ; j<=n ; j++ ) {
@@ -610,14 +758,14 @@ void FluidSolver::project_cg(int n, float *u, float *v, float *p, float *div){
         if (div_constants[i] < 0) div_constants[i] = 0;
     }
 
-    for ( i=1 ; i<=n ; i++ ) {
-        for ( j=1 ; j<=n ; j++ ) {
-            div[IX(i,j)] = -0.5*h*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)]) + div_constants[IX(i,j)];
-        }
-    }
+//    for ( i=1 ; i<=n ; i++ ) {
+//        for ( j=1 ; j<=n ; j++ ) {
+//            div[IX(i,j)] = -0.5*h*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)]) + div_constants[IX(i,j)];
+//        }
+//    }
 
 
-    set_bnd ( n, 0, div ); set_bnd ( n, 0, p );
+    //set_bnd ( n, 0, div ); set_bnd ( n, 0, p );
 }
 
 void FluidSolver::dens_step(int n, float * x, float * x0, float * u, float * v, float diff, float dt){
@@ -717,7 +865,7 @@ void FluidSolver::vel_step(int n, float *u, float *v, float *u0, float *v0, floa
         case CONJ_GRAD:
             SWAP ( u0, u ); diffuse_cg ( n, 1, u, u0, &conj_grad_A_visc);
             SWAP ( v0, v ); diffuse_cg ( n, 2, v, v0, &conj_grad_A_visc);
-            project_cg( n, u, v, u0, divergence );
+            project_cg ( n, u, v, u0, divergence );
             SWAP ( u0, u ); SWAP ( v0, v );
             if(bfecc) {
                 advect_bfecc ( n, 1, u, u0, u_bfecc_1, u_bfecc_2, u0, v0, dt );
@@ -784,19 +932,49 @@ void FluidSolver::vel_step(int n, float *u, float *v, float *u0, float *v0, floa
 //        sum_velocities = false; }
 }
 
-void FluidSolver::set_bnd(int n, int b, float * x){
-    int i;
-    for ( i=1 ; i<=n ; i++ ) {
-        if(b==1) x[IX(0 ,i)] = -x[IX(1,i)]; else x[IX(0 ,i)] = x[IX(1,i)];
-        if(b==1) x[IX(n+1,i)] = -x[IX(n,i)]; else x[IX(n+1,i)] = x[IX(n,i)];
-        if(b==2) x[IX(i,0)] = -x[IX(i,1)]; else x[IX(i,0)] = x[IX(i,1)];
-        if(b==2) x[IX(i,n+1)] = -x[IX(i,n+1)]; else x[IX(i,n+1)] = x[IX(i,n)];
+//void FluidSolver::set_bnd(int n, int b, float * x){
+//    int i;
+//    for ( i=1 ; i<=n ; i++ ) {
+//        if(b==1) x[IX(0 ,i)] = -x[IX(1,i)]; else x[IX(0 ,i)] = x[IX(1,i)];
+//        if(b==1) x[IX(n+1,i)] = -x[IX(n,i)]; else x[IX(n+1,i)] = x[IX(n,i)];
+//        if(b==2) x[IX(i,0)] = -x[IX(i,1)]; else x[IX(i,0)] = x[IX(i,1)];
+//        if(b==2) x[IX(i,n+1)] = -x[IX(i,n+1)]; else x[IX(i,n+1)] = x[IX(i,n)];
+//    }
+//    x[IX(0 ,0 )] = 0.5*(x[IX(1,0 )]+x[IX(0 ,1)]);
+//    x[IX(0 ,n+1)] = 0.5*(x[IX(1,n+1)]+x[IX(0 ,n )]);
+//    x[IX(n+1,0 )] = 0.5*(x[IX(n,0 )]+x[IX(n+1,1)]);
+//    x[IX(n+1,n+1)] = 0.5*(x[IX(n,n+1)]+x[IX(n+1,n)]);
+//}
+
+void FluidSolver::set_bnd ( int N, int b, float * x )
+{
+int i;
+
+for ( i=1 ; i<=N ; i++ ) {
+    if(b==1){
+        x[IX(0,i)] = -x[IX(1,i)];
+        x[IX(N+1,i)] = -x[IX(N,i)];
+    } else {
+        x[IX(0 ,i)] = x[IX(1,i)];
+        x[IX(N+1,i)] = x[IX(N,i)];
+
     }
-    x[IX(0 ,0 )] = 0.5*(x[IX(1,0 )]+x[IX(0 ,1)]);
-    x[IX(0 ,n+1)] = 0.5*(x[IX(1,n+1)]+x[IX(0 ,n )]);
-    x[IX(n+1,0 )] = 0.5*(x[IX(n,0 )]+x[IX(n+1,1)]);
-    x[IX(n+1,n+1)] = 0.5*(x[IX(n,n+1)]+x[IX(n+1,n)]);
+    if(b==2){
+        x[IX(i,0 )] =-x[IX(i,1)];
+        x[IX(i,N+1)] =-x[IX(i,N)];
+    }
+    else{
+        x[IX(i,0 )] =x[IX(i,1)];
+        x[IX(i,N+1)] = x[IX(i,N)];
+    }
+
 }
+x[IX(0 ,0 )] = 0.5*(x[IX(1,0 )]+x[IX(0 ,1)]);
+x[IX(0 ,N+1)] = 0.5*(x[IX(1,N+1)]+x[IX(0 ,N )]);
+x[IX(N+1,0 )] = 0.5*(x[IX(N,0 )]+x[IX(N+1,1)]);
+x[IX(N+1,N+1)] = 0.5*(x[IX(N,N+1)]+x[IX(N+1,N )]);
+}
+
 
 void FluidSolver::step(){
 
@@ -804,11 +982,10 @@ void FluidSolver::step(){
     if(simEnabled || oneStep){
         external_forces();
         vel_step ( DIM, u, v, u_prev, v_prev, visc, dt );
+        update_particles();
         cfl_check();
         dens_step(DIM, d, d_prev, u, v, diff, dt);
         temp_step();
-        if(multi_threading) update_particles_MT();
-        else update_particles();
     }
     oneStep = false;
     isDone = true;
@@ -861,11 +1038,11 @@ void FluidSolver::reset(){
     memset(d_prev, 0, SIZE*sizeof(float));
     memset(u_prev, 0, SIZE*sizeof(float));
     memset(v_prev, 0, SIZE*sizeof(float));
-    memset(t_prev, 0, SIZE*sizeof(float));
+    memset(t_prev, 0, 2*SIZE*sizeof(float));
     memset(d, 0, SIZE*sizeof(float));
     memset(u, 0, SIZE*sizeof(float));
     memset(v, 0, SIZE*sizeof(float));
-    memset(t, 0, SIZE*sizeof(float));
+    memset(t, 0, 2*SIZE*sizeof(float));
     memset(div_constants, 0, SIZE*sizeof(float));
     memset(u_acc, 0, SIZE*sizeof(float));
     memset(v_acc, 0, SIZE*sizeof(float));
@@ -902,7 +1079,11 @@ void FluidSolver::set_dt(float new_dt) {
 void FluidSolver::set_diff(float new_diff) {
     diff = new_diff;
     initializeConjGradMat(&conj_grad_A_diff, diff, dt, h_space);
-    initializeConjGradMat(&conj_grad_A_temp, diff, dt, h_space);
+}
+
+void FluidSolver::set_heat_diff(float new_diff){
+    heat_diff = new_diff;
+    initializeConjGradMat(&conj_grad_A_temp, heat_diff, dt, h_space);
 }
 
 void FluidSolver::set_visc(float new_visc) {
@@ -942,7 +1123,7 @@ void FluidSolver::vel_field(int field){
         for(int i=0; i<SIZE; i++) u[i] = .5;
         break;
     case 2:
-        for(int i=0; i<SIZE; i++) v[i] = .5;
+        for(int i=0; i<SIZE; i++) v[i] = .005;
         break;
     case 3:
         for(int i=0; i<SIZE; i++) u[i] = -.5;
@@ -952,8 +1133,8 @@ void FluidSolver::vel_field(int field){
         break;
     case 5:
         for(int i=0; i<SIZE; i++) {
-            v[i] = ((float)rand())/INT_MAX*2-1;
-            u[i] = ((float)rand())/INT_MAX*2-1;
+            v[i] = ((float)rand())/INT_MAX-.5;
+            u[i] = ((float)rand())/INT_MAX-.5;
         }
         break;
     }
@@ -962,9 +1143,11 @@ void FluidSolver::vel_field(int field){
 
 void FluidSolver::update_particles(){
 
-    float weight_horz=0, weight_vert=0;
+    float pos_horz, pos_vert, weight_horz, weight_vert;
     float u_vel = 0, v_vel = 0, temp = 0;
     int grid_i = 0, grid_j = 0;
+
+    int i0, j0;
 
     switch(vel_method) {
 
@@ -972,32 +1155,114 @@ void FluidSolver::update_particles(){
 
         for(int i=0; i<num_particles; i++){
 
-            grid_i = (int)(particle_pos_X[i]/h_space);
-            grid_j = (int)(particle_pos_Y[i]/h_space);
+            grid_j = (int)(particle_pos_X[i]/h_space);
+            grid_i = (int)(particle_pos_Y[i]/h_space);
 
-            weight_horz = particle_pos_X[i]/h_space - grid_i;
-            weight_vert = particle_pos_Y[i]/h_space - grid_j;
+            pos_horz = particle_pos_X[i]/h_space - grid_j;
+            pos_vert = particle_pos_Y[i]/h_space - grid_i;
 
+            if(num_particles <10){
+            printf("horz: %f\n", pos_horz);
+            printf("vert: %f\n", pos_vert);
+            }
 
-            u_vel =    weight_vert*((weight_horz)*u[IX(grid_i, grid_j)]+(1-weight_horz)*u[IX(grid_i, grid_j+1)]) +
-                    (1-weight_vert)*((weight_horz)*u[IX(grid_i+1, grid_j)]+(1-weight_horz)*u[IX(grid_i+1, grid_j+1)]);
+            if(pos_horz > 0.5) {
+                j0 = grid_j+1;
+                weight_horz = 1 - (pos_horz-0.5);
+            }
+            else {
+                j0 = grid_j-1;
+                weight_horz = 1 - (0.5-pos_horz);
+            }
+            if(pos_vert > 0.5) {
+                i0 = grid_i+1;
+                weight_vert = 1 - (pos_vert-0.5);
+            }
+            else {
+                i0 = grid_i - 1;
+                weight_vert = 1 - (0.5-pos_vert);
+            }
+            if (i0 < 0 || i0 > DIM+1) i0 = grid_i;
+            if (j0 < 0 || j0 > DIM+1) j0 = grid_j;
 
-            v_vel = weight_vert*((weight_horz)*v[IX(grid_i, grid_j)]+(1-weight_horz)*v[IX(grid_i, grid_j+1)]) +
-                 (1-weight_vert)*((weight_horz)*v[IX(grid_i+1, grid_j)]+(1-weight_horz)*v[IX(grid_i+1, grid_j+1)]);
+            if(num_particles <10){
+            printf("weight horz: %f\n", weight_horz);
+            printf("weight vert: %f\n", weight_vert);
+            }
 
-            temp = weight_vert*((weight_horz)*t[IX(grid_i, grid_j)]+(1-weight_horz)*t[IX(grid_i, grid_j+1)]) +
-                    (1-weight_vert)*((weight_horz)*t[IX(grid_i+1, grid_j)]+(1-weight_horz)*t[IX(grid_i+1, grid_j+1)]);
+            u_vel =    weight_vert*((weight_horz)*u[IX(grid_j, grid_i)]+(1-weight_horz)*u[IX(j0, grid_i)]) +
+                   (1-weight_vert)*((weight_horz)*u[IX(grid_j, i0)]+(1-weight_horz)*u[IX(j0, i0)]);
+
+            v_vel =  weight_vert*((weight_horz)*v[IX(grid_j, grid_i)]+(1-weight_horz)*v[IX(j0, grid_i)]) +
+                    (1-weight_vert)*((weight_horz)*v[IX(grid_j, i0)]+(1-weight_horz)*v[IX(j0, i0)]);
 
             particle_pos_X[i] += dt*u_vel;
             particle_pos_Y[i] += dt*v_vel;
-            particle_temp[i] += dt*ah*r*r*(temp-particle_temp[i])/cm;
 
-            if(particle_pos_X[i]>1) particle_pos_X[i] = 1;
-            else if (particle_pos_X[i]<0) particle_pos_X[i] = 0;
-            if(particle_pos_Y[i]>1) particle_pos_Y[i] = 1;
-            else if (particle_pos_Y[i]<0) particle_pos_Y[i] = 0;
-            if(particle_temp[i]>1) particle_temp[i] = 1;
-            else if (particle_temp[i]<0) particle_temp[i] = 0;
+
+            if(particle_pos_X[i]>=1) particle_pos_X[i] = .99;
+            else if (particle_pos_X[i]<=0) particle_pos_X[i] = .01;
+            if(particle_pos_Y[i]>=1) particle_pos_Y[i] = .99;
+            else if (particle_pos_Y[i]<=0) particle_pos_Y[i] = .01;
+
+            if(!exploding_particles || (exploding_particles && particle_temp[i] < temp_threshold)){
+
+                temp =  weight_vert*((weight_horz)*t[IX(grid_j, grid_i)]+(1-weight_horz)*t[IX(j0, grid_i)]) +
+                        (1-weight_vert)*((weight_horz)*t[IX(grid_j, i0)]+(1-weight_horz)*t[IX(j0, i0)]);
+
+                particle_temp[i] += dt*ah*r*r*(temp-particle_temp[i])/cm;
+                if(particle_temp[i]>1) particle_temp[i] = 1;
+                else if (particle_temp[i]<0) particle_temp[i] = 0;
+            }
+            else if (exploding_particles && particle_life[i] > 0){
+                float particle_heat = Bh*z*dt;
+                float particle_div = .05*dt;
+                float h0, h1, v0, v1;
+                int i0=grid_i, i1, j0=grid_j, j1;
+
+                if(pos_horz > 0.5){
+                    j1 = j0 + 1;
+                    h0 = 1 - (pos_horz-.5);
+                } else {
+                    j1 = j0 - 1;
+                    h0 = 1 - (.5-pos_horz);
+                }
+                h1 = 1 - h0;
+
+                if(pos_vert > 0.5){
+                    i1 = i0 + 1;
+                    v0 = 1 - (pos_vert-.5);
+                } else {
+                    i1 = i0 - 1;
+                    v0 = 1 - (.5-pos_vert);
+                }
+                v1 = 1 - v0;
+
+                if (i1 < 0 || i1 > DIM+1) i1 = i0;
+                if (j1 < 0 || j1 > DIM+1) j1 = j0;
+
+                t[IX(j0,i0)] = particle_heat*h0*v0;
+                t[IX(j0,i1)] = particle_heat*h0*v1;
+                t[IX(j1,i1)] = particle_heat*h1*v1;
+                t[IX(j1,i0)] = particle_heat*h1*v0;
+//                t[IX(j0,i0)] = particle_heat/4;
+//                t[IX(j0,i1)] = particle_heat/4;
+//                t[IX(j1,i1)] = particle_heat/4;
+//                t[IX(j1,i0)] = particle_heat/4;
+
+                if(particle_life[i] == 1 && explosiveParticles) {
+                    div_constants[IX(j0,i0)] = particle_div*h0*v0;
+                    div_constants[IX(j0,i1)] = particle_div*h0*v1;
+                    div_constants[IX(j1,i1)] = particle_div*h1*v1;
+                    div_constants[IX(j1,i0)] = particle_div*h1*v0;
+//                    div_constants[IX(j0,i0)] = particle_div/4;
+//                    div_constants[IX(j0,i1)] = particle_div/4;
+//                    div_constants[IX(j1,i1)] = particle_div/4;
+//                    div_constants[IX(j1,i0)] = particle_div/4;
+                }
+
+                particle_life[i] -= z*dt;
+            }
 
         }
         break;
@@ -1011,8 +1276,8 @@ void FluidSolver::update_particles(){
             grid_i = (int)(particle_pos_X[i]/h_space);
             grid_j = (int)(particle_pos_Y[i]/h_space);
 
-            weight_horz = particle_pos_X[i]/h_space - grid_i;
-            weight_vert = particle_pos_Y[i]/h_space - grid_j;
+            weight_vert = particle_pos_X[i]/h_space - grid_i;
+            weight_horz = particle_pos_Y[i]/h_space - grid_j;
 
             u_vel =    weight_vert*((weight_horz)*u[IX(grid_i, grid_j)]+(1-weight_horz)*u[IX(grid_i, grid_j+1)]) +
                     (1-weight_vert)*((weight_horz)*u[IX(grid_i+1, grid_j)]+(1-weight_horz)*u[IX(grid_i+1, grid_j+1)]);
@@ -1020,8 +1285,26 @@ void FluidSolver::update_particles(){
             v_vel = weight_vert*((weight_horz)*v[IX(grid_i, grid_j)]+(1-weight_horz)*v[IX(grid_i, grid_j+1)]) +
                  (1-weight_vert)*((weight_horz)*v[IX(grid_i+1, grid_j)]+(1-weight_horz)*v[IX(grid_i+1, grid_j+1)]);
 
-            temp = weight_vert*((weight_horz)*t[IX(grid_i, grid_j)]+(1-weight_horz)*t[IX(grid_i, grid_j+1)]) +
-                    (1-weight_vert)*((weight_horz)*t[IX(grid_i+1, grid_j)]+(1-weight_horz)*t[IX(grid_i+1, grid_j+1)]);
+            if(!exploding_particles || (exploding_particles && particle_temp[i] < temp_threshold)){
+                temp = weight_vert*((weight_horz)*t[IX(grid_i, grid_j)]+(1-weight_horz)*t[IX(grid_i, grid_j+1)]) +
+                        (1-weight_vert)*((weight_horz)*t[IX(grid_i+1, grid_j)]+(1-weight_horz)*t[IX(grid_i+1, grid_j+1)]);
+                particle_temp[i] += dt*ah*r*r*(temp-particle_temp[i])/cm;
+                if(particle_temp[i]>1) particle_temp[i] = 1;
+                else if (particle_temp[i]<0) particle_temp[i] = 0;
+            }
+            else if (exploding_particles && particle_life[i] > 0){
+                particle_life[i] -= z*dt;
+                float particle_heat = Bh*z*dt;
+                int i0, j0;
+                if(weight_horz >= h_space/2) i0 = grid_i+1; else i0 = grid_i-1;
+                if(weight_vert >= h_space/2) j0 = grid_j+1; else j0 = grid_j-1;
+                if(i0 < 0) i0 = 0; if(i0>DIM+2) i0=DIM+2;
+                if(j0 < 0) j0 = 0; if(j0>DIM+2) j0=DIM+2;
+                t[IX(grid_i,grid_j)] += particle_heat/4.0;
+                t[IX(grid_i,j0)] += particle_heat/4.0;
+                t[IX(i0,j0)] += particle_heat/4.0;
+                t[IX(i0,grid_j)] += particle_heat/4.0;
+            }
 
             x_pos = particle_pos_X[i]+dt*u_vel*0.5;
             y_pos = particle_pos_Y[i]+dt*v_vel*0.5;
@@ -1041,14 +1324,11 @@ void FluidSolver::update_particles(){
 
             particle_pos_X[i] += dt*u_vel;
             particle_pos_Y[i] += dt*v_vel;
-            particle_temp[i] += dt*ah*r*r*(temp-particle_temp[i])/cm;
 
             if(particle_pos_X[i]>1) particle_pos_X[i] = 1;
             else if (particle_pos_X[i]<0) particle_pos_X[i] = 0;
             if(particle_pos_Y[i]>1) particle_pos_Y[i] = 1;
             else if (particle_pos_Y[i]<0) particle_pos_Y[i] = 0;
-            if(particle_temp[i]>1) particle_temp[i] = 1;
-            else if (particle_temp[i]<0) particle_temp[i] = 0;
         }
         break;
     }
@@ -1107,8 +1387,8 @@ void *FluidSolver::update_particles_ST(void * arg){
             weight_horz = data->solver->particle_pos_X[i]/data->solver->h_space - grid_i;
             weight_vert = data->solver->particle_pos_Y[i]/data->solver->h_space - grid_j;
 
-            u_vel =    weight_vert*((weight_horz)*data->solver->u[IX(grid_i, grid_j)]+(1-weight_horz)*data->solver->u[IX(grid_i, grid_j+1)]) +
-                    (1-weight_vert)*((weight_horz)*data->solver->u[IX(grid_i+1, grid_j)]+(1-weight_horz)*data->solver->u[IX(grid_i+1, grid_j+1)]);
+            u_vel =    weight_vert*((1-weight_horz)*data->solver->u[IX(grid_i, grid_j)]+(weight_horz)*data->solver->u[IX(grid_i, grid_j+1)]) +
+                    (1-weight_vert)*((1-weight_horz)*data->solver->u[IX(grid_i+1, grid_j)]+(weight_horz)*data->solver->u[IX(grid_i+1, grid_j+1)]);
 
             v_vel = weight_vert*((weight_horz)*data->solver->v[IX(grid_i, grid_j)]+(1-weight_horz)*data->solver->v[IX(grid_i, grid_j+1)]) +
                  (1-weight_vert)*((weight_horz)*data->solver->v[IX(grid_i+1, grid_j)]+(1-weight_horz)*data->solver->v[IX(grid_i+1, grid_j+1)]);
@@ -1123,11 +1403,11 @@ void *FluidSolver::update_particles_ST(void * arg){
             weight_horz = x_pos/data->solver->h_space - grid_i;
             weight_vert = y_pos/data->solver->h_space - grid_j;
 
-            u_vel =    weight_vert*((weight_horz)*data->solver->u[IX(grid_i, grid_j)]+(1-weight_horz)*data->solver->u[IX(grid_i, grid_j+1)]) +
-                    (1-weight_vert)*((weight_horz)*data->solver->u[IX(grid_i+1, grid_j)]+(1-weight_horz)*data->solver->u[IX(grid_i+1, grid_j+1)]);
+            u_vel =    weight_vert*((1-weight_horz)*data->solver->u[IX(grid_i, grid_j)]+(weight_horz)*data->solver->u[IX(grid_i, grid_j+1)]) +
+                    (1-weight_vert)*(1-(weight_horz)*data->solver->u[IX(grid_i+1, grid_j)]+(weight_horz)*data->solver->u[IX(grid_i+1, grid_j+1)]);
 
-            v_vel = weight_vert*((weight_horz)*data->solver->v[IX(grid_i, grid_j)]+(1-weight_horz)*data->solver->v[IX(grid_i, grid_j+1)]) +
-                 (1-weight_vert)*((weight_horz)*data->solver->v[IX(grid_i+1, grid_j)]+(1-weight_horz)*data->solver->v[IX(grid_i+1, grid_j+1)]);
+            v_vel = weight_vert*((1-weight_horz)*data->solver->v[IX(grid_i, grid_j)]+(weight_horz)*data->solver->v[IX(grid_i, grid_j+1)]) +
+                 (1-weight_vert)*((1-weight_horz)*data->solver->v[IX(grid_i+1, grid_j)]+(weight_horz)*data->solver->v[IX(grid_i+1, grid_j+1)]);
 
             data->solver->particle_pos_X[i] += data->solver->dt*u_vel;
             data->solver->particle_pos_Y[i] += data->solver->dt*v_vel;
@@ -1171,6 +1451,7 @@ void FluidSolver::buoyancy_test(){
     for(int j=0; j<DIM+2; j++) {
         for(int i=0; i<(DIM+2)/2; i++) {
             t[IX(i,j)] = 1;
+            d[IX(i,j)] = .9;
         }
     }
     t_amb = 0.0;
@@ -1208,4 +1489,8 @@ void FluidSolver::cfl_check(){
 
 void FluidSolver::set_buoy(float new_buoy) {
     buoy = new_buoy;
+}
+
+void FluidSolver::setExplodingParticles(bool enabled) {
+    explosiveParticles = enabled;
 }

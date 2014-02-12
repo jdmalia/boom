@@ -17,8 +17,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->scalarBox->addItem("Velocities (Vert)");
     ui->scalarBox->addItem("Divergence");
 
-    ui->methodBox->addItem("Conjugate Gradient");
     ui->methodBox->addItem("Gauss-Seidel");
+    ui->methodBox->addItem("Conjugate Gradient");
 
     ui->blastBox->addItem("Circle");
     ui->blastBox->addItem("Diamond");

@@ -1287,9 +1287,9 @@
       <widget class="QLabel" name="cfl_violations">
        <property name="geometry">
         <rect>
-         <x>110</x>
+         <x>105</x>
          <y>40</y>
-         <width>31</width>
+         <width>41</width>
          <height>16</height>
         </rect>
        </property>
@@ -1449,14 +1449,6 @@
         <string>Iterations: 0</string>
        </property>
       </widget>
-      <zorder>pushButton_3</zorder>
-      <zorder>pushButton_4</zorder>
-      <zorder>label_10</zorder>
-      <zorder>label_13</zorder>
-      <zorder>cfl_violations</zorder>
-      <zorder>label_14</zorder>
-      <zorder>label_15</zorder>
-      <zorder>opengl_widget</zorder>
      </widget>
     </widget>
     <widget class="QWidget" name="widget_A3" native="true">
@@ -1682,6 +1674,9 @@
        </property>
        <property name="maximum">
         <number>20</number>
+       </property>
+       <property name="value">
+        <number>10</number>
        </property>
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
@@ -2785,6 +2780,66 @@
         <enum>Qt::Horizontal</enum>
        </property>
       </widget>
+      <widget class="QCheckBox" name="buoyEnable_2">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>65</y>
+         <width>111</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="palette">
+        <palette>
+         <active>
+          <colorrole role="WindowText">
+           <brush brushstyle="SolidPattern">
+            <color alpha="255">
+             <red>240</red>
+             <green>240</green>
+             <blue>240</blue>
+            </color>
+           </brush>
+          </colorrole>
+         </active>
+         <inactive>
+          <colorrole role="WindowText">
+           <brush brushstyle="SolidPattern">
+            <color alpha="255">
+             <red>240</red>
+             <green>240</green>
+             <blue>240</blue>
+            </color>
+           </brush>
+          </colorrole>
+         </inactive>
+         <disabled>
+          <colorrole role="WindowText">
+           <brush brushstyle="SolidPattern">
+            <color alpha="255">
+             <red>127</red>
+             <green>127</green>
+             <blue>127</blue>
+            </color>
+           </brush>
+          </colorrole>
+         </disabled>
+        </palette>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>Explosive </string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
      </widget>
     </widget>
     <widget class="QWidget" name="widget_B3_3" native="true">
@@ -2941,7 +2996,7 @@
       <widget class="QLabel" name="label_16">
        <property name="geometry">
         <rect>
-         <x>13</x>
+         <x>10</x>
          <y>10</y>
          <width>81</width>
          <height>16</height>
@@ -2987,6 +3042,8 @@
        <property name="font">
         <font>
          <pointsize>11</pointsize>
+         <weight>75</weight>
+         <bold>true</bold>
         </font>
        </property>
        <property name="text">
@@ -2996,8 +3053,8 @@
       <widget class="QCheckBox" name="checkBox_8">
        <property name="geometry">
         <rect>
-         <x>10</x>
-         <y>30</y>
+         <x>110</x>
+         <y>10</y>
          <width>112</width>
          <height>22</height>
         </rect>
@@ -3056,7 +3113,7 @@
       <widget class="QCheckBox" name="checkBox_9">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>110</x>
          <y>30</y>
          <width>112</width>
          <height>22</height>
@@ -3116,7 +3173,7 @@
       <widget class="QCheckBox" name="checkBox_10">
        <property name="geometry">
         <rect>
-         <x>180</x>
+         <x>190</x>
          <y>30</y>
          <width>112</width>
          <height>22</height>
@@ -3173,6 +3230,34 @@
         <bool>true</bool>
        </property>
       </widget>
+      <widget class="QSlider" name="diffSlider_2">
+       <property name="geometry">
+        <rect>
+         <x>190</x>
+         <y>10</y>
+         <width>85</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Ignored" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimum">
+        <number>2</number>
+       </property>
+       <property name="maximum">
+        <number>500</number>
+       </property>
+       <property name="value">
+        <number>2</number>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+      </widget>
      </widget>
     </widget>
    </widget>
@@ -3195,7 +3280,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Temperature</string>
+      <string>Cold Particles</string>
      </property>
     </widget>
     <widget class="QPushButton" name="buoyancyTest">
@@ -3348,6 +3433,8 @@
     <slot>set_blast_shape(QString)</slot>
     <slot>temperatureTest()</slot>
     <slot>setTemperatures(bool)</slot>
+    <slot>set_heat_diff(int)</slot>
+    <slot>setExplodingParticles(bool)</slot>
    </slots>
   </customwidget>
  </customwidgets>
@@ -3824,8 +3911,8 @@
    <slot>set_temp_diff_enable(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>789</x>
-     <y>527</y>
+     <x>889</x>
+     <y>507</y>
     </hint>
     <hint type="destinationlabel">
      <x>518</x>
@@ -3942,6 +4029,38 @@
     <hint type="destinationlabel">
      <x>891</x>
      <y>65</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>diffSlider_2</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>opengl_widget</receiver>
+   <slot>set_heat_diff(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>990</x>
+     <y>507</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>687</x>
+     <y>583</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buoyEnable_2</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>opengl_widget</receiver>
+   <slot>setExplodingParticles(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>944</x>
+     <y>211</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>659</x>
+     <y>129</y>
     </hint>
    </hints>
   </connection>

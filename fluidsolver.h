@@ -13,8 +13,8 @@ using namespace Eigen;
 #define SWAP(x0, x) {float* tmp=x0; x0=x; x=tmp;}
 
 #define MAX_PARTICLES 100000
-#define CG_ITERATIONS 40
-#define CG_TOLERANCE 1e-8
+#define CG_ITERATIONS 40 // (DIM+2)*(DIM+2)
+#define CG_TOLERANCE 1e-3
 #define CFL_LIMIT 1
 
 enum Numeric_Method {CONJ_GRAD, GAUSS_SEIDEL};
@@ -73,10 +73,12 @@ public:
     float* div_constants;
     float div_falloff;
 
+    bool exploding_particles;
     int num_particles;
     Performance performance;
-    float *particle_pos_X, *particle_pos_Y, *particle_temp;
-    float ah, r, cm;
+    float z, temp_threshold;
+    float *particle_pos_X, *particle_pos_Y, *particle_temp, *particle_life;
+    float ah, r, cm, Bh;
 
     float dt;
     float h_space;
@@ -104,6 +106,7 @@ public:
 public slots:
     void set_dt(float);
     void set_diff(float);
+    void set_heat_diff(float);
     void set_visc(float);
     void set_blast_rad(float);
     void set_blast_intensity(float);
@@ -114,6 +117,7 @@ public slots:
     void reset();
     void buoyancyEnable(bool);
     void set_buoy(float);
+    void setExplodingParticles(bool);
 
 private:
 
@@ -121,6 +125,7 @@ private:
     float heat_diff;
     float visc;
     float buoy;
+    bool explosiveParticles;
 
     SparseMatrix<float> conj_grad_A_diff;
     SparseMatrix<float> conj_grad_A_visc;
